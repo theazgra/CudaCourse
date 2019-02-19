@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include "Array2D.h"
 
-constexpr int N = 55;
-constexpr int M = 3;
+constexpr int N = 3;
+constexpr int M = 15;
 
 __global__ void simplest_kernel_sum(int *A, int *B, int *result)
 {
@@ -28,7 +29,7 @@ __global__ void kernel_sum_pairs(int *data, int *result)
         result[m] = 0;
         for (size_t n = 0; n < N; n++)
         {
-            result[m] += data[n + m];
+            result[m] += data[(n * M) + m];
         }
     }
 }
@@ -79,20 +80,22 @@ int main(void)
 #endif
 
     // Allocate the HOST memory that will represent N M-dimensional vectors (A_0,...A_n-1, B_0, ... B_n-1) and fill them with some values.
-    int data[N][M];
-    for (size_t i = 0; i < N; i++)
+    Array2D<int> data(N, M);
+    //int data[N][M];
+    for (size_t row = 0; row < N; row++)
     {
-        for (size_t j = 0; j < M; j++)
+        for (size_t col = 0; col < M; col++)
         {
-            data[i][j] = i + j;
+            data.at(row, col) = row * col + row;
         }
     }
+    data.print();
 
     // Allocate the DEVICE memory to be able to copy data from HOST.
     int *device_data;
     cudaMalloc((void **)&device_data, sizeof(int) * N * M);
 
-    cudaMemcpy(device_data, data, sizeof(int) * N * M, cudaMemcpyHostToDevice);
+    cudaMemcpy(device_data, data.data_ptr(), sizeof(int) * N * M, cudaMemcpyHostToDevice);
 
     // Allocate the DEVICE memory to store output M-dimensional vectors C_0 ... C_n-1.
     int *device_result;
