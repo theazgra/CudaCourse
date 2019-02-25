@@ -2,4 +2,4 @@
 Repositoty for gpu programming with cuda.
 
 
-Completed Chapter 4.
+Page 75.
