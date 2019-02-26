@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include <cuda.h>
 #include <cuda_runtime.h>
+#include <cuda.h>
 #include <vector>
 #include <math.h>
 
@@ -28,3 +28,8 @@ static void HandleError(cudaError_t err,
             exit(EXIT_FAILURE);                             \
         }                                                   \
     }
+
+inline size_t get_number_of_parts(size_t whole, size_t divider)
+{
+    return ((whole + divider - 1) / divider);
+}
