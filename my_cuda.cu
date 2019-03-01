@@ -33,3 +33,19 @@ inline size_t get_number_of_parts(size_t whole, size_t divider)
 {
     return ((whole + divider - 1) / divider);
 }
+
+#define CUDA_TIMED_BLOCK_START(fn_name) \
+    const char *___tmdFnName = fn_name; \
+    cudaEvent_t startEvent, stopEvent;  \
+    float elapsedTime;                  \
+    cudaEventCreate(&startEvent);       \
+    cudaEventCreate(&stopEvent);        \
+    cudaEventRecord(startEvent, 0);
+
+#define CUDA_TIMED_BLOCK_END                                   \
+    cudaEventRecord(stopEvent, 0);                             \
+    cudaEventSynchronize(stopEvent);                           \
+    cudaEventElapsedTime(&elapsedTime, startEvent, stopEvent); \
+    printf("%s took: %f ms\n", ___tmdFnName, elapsedTime);     \
+    cudaEventDestroy(startEvent);                              \
+    cudaEventDestroy(stopEvent);
