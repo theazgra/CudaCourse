@@ -2,6 +2,7 @@
 #include <cuda_runtime.h>
 #include <cuda.h>
 #include <vector>
+#include <functional>
 #include <math.h>
 
 typedef unsigned char byte;
@@ -49,3 +50,17 @@ inline size_t get_number_of_parts(size_t whole, size_t divider)
     printf("%s took: %f ms\n", ___tmdFnName, elapsedTime);     \
     cudaEventDestroy(startEvent);                              \
     cudaEventDestroy(stopEvent);
+
+// template <typename T>
+// bool all_satisfy
+
+template <typename T>
+bool all_not_eq(const std::vector<T> &data, const T &cmp)
+{
+    for (size_t i = 0; i < data.size(); i++)
+    {
+        if (data[i] == cmp)
+            return false;
+    }
+    return true;
+}
