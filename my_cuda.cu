@@ -4,6 +4,8 @@
 #include <vector>
 #include <functional>
 #include <math.h>
+#include <time.h>
+#include <random>
 
 typedef unsigned char byte;
 
@@ -64,3 +66,9 @@ bool all_not_eq(const std::vector<T> &data, const T &cmp)
     }
     return true;
 }
+
+struct KernelSetting
+{
+    dim3 dimGrid;
+    dim3 dimBlock;
+};
