@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
 {
 	initializeCUDA(deviceProp);
 
-	loadSourceImage("terrain10x10.tif");
+	loadSourceImage("../terrain10x10.tif");
 
 	cudaMalloc((void **)&dOutputData, imageWidth * imageHeight * sizeof(float));
 
