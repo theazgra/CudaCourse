@@ -6,6 +6,7 @@
 #include <math.h>
 #include <time.h>
 #include <random>
+#include <assert.h>
 
 typedef unsigned char byte;
 
@@ -21,16 +22,6 @@ static void HandleError(cudaError_t err,
     }
 }
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__))
-
-#define HANDLE_NULL(a)                                      \
-    {                                                       \
-        if (a == NULL)                                      \
-        {                                                   \
-            printf("Host memory failed in %s at line %d\n", \
-                   __FILE__, __LINE__);                     \
-            exit(EXIT_FAILURE);                             \
-        }                                                   \
-    }
 
 inline size_t get_number_of_parts(size_t whole, size_t divider)
 {
@@ -72,3 +63,12 @@ struct KernelSetting
     dim3 dimGrid;
     dim3 dimBlock;
 };
+
+template <typename T>
+void safe_cuda_free(T *ptr)
+{
+    if (ptr != nullptr)
+    {
+        cudaFree(ptr);
+    }
+}
