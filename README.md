@@ -1,3 +1,8 @@
+## Homework
+- Finish the terrain to normal map conversion
+- [ ] Convolution (sobel operator)
+- [ ] Normalization of values
+
 ## Project - Cellular Genetic Algorithm
 - Fitness value will be stored in 2D Texture (`N` x `M`)
 - Cells will be stored in pitched memory
