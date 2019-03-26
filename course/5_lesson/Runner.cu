@@ -1,7 +1,9 @@
-// #include "../../my_cuda.cu"
+// includes, cuda
+#include <cuda_runtime.h>
 
 #include <cudaDefs.h>
 #include <imageManager.h>
+
 #include "imageKernels.cuh"
 
 #define BLOCK_DIM 8
@@ -9,8 +11,7 @@
 cudaError_t error = cudaSuccess;
 cudaDeviceProp deviceProp = cudaDeviceProp();
 
-texture<float, 2, cudaReadModeElementType> texRef; // declared texture reference must be at file-scope !!!
-
+texture<float, 2, cudaReadModeElementType> texRef;
 cudaChannelFormatDesc texChannelDesc;
 
 unsigned char *dImageData = 0;
@@ -35,7 +36,7 @@ void loadSourceImage(const char *imageFileName)
 	imageWidth = FreeImage_GetWidth(tmp);
 	imageHeight = FreeImage_GetHeight(tmp);
 	imageBPP = FreeImage_GetBPP(tmp);
-	imagePitch = FreeImage_GetPitch(tmp); // FREEIMAGE align row data ... You have to use pitch instead of width
+	imagePitch = FreeImage_GetPitch(tmp);
 
 	cudaMalloc((void **)&dImageData, imagePitch * imageHeight * imageBPP / 8);
 	cudaMemcpy(dImageData, FreeImage_GetBits(tmp), imagePitch * imageHeight * imageBPP / 8, cudaMemcpyHostToDevice);
@@ -49,8 +50,10 @@ void loadSourceImage(const char *imageFileName)
 
 void createTextureFromLinearPitchMemory()
 {
+	//Floating Point Texture Data
 	cudaMallocPitch((void **)&dLinearPitchTextureData, &texPitch, imageWidth * sizeof(float), imageHeight);
 
+	//Converts custom image data to float and stores result in the float_pitch_linear_data
 	switch (imageBPP)
 	{
 	case 8:
@@ -65,44 +68,50 @@ void createTextureFromLinearPitchMemory()
 	case 32:
 		colorToFloat<32><<<ks.dimGrid, ks.dimBlock>>>(dImageData, imageWidth, imageHeight, imagePitch, texPitch / sizeof(float), dLinearPitchTextureData);
 		break;
-	default:
-		break;
 	}
 
 	checkDeviceMatrix<float>(dLinearPitchTextureData, texPitch, imageHeight, imageWidth, "%6.1f ", "Result of Linear Pitch Text");
 
+	//Texture settings
 	texChannelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-
 	texRef.normalized = false;
+	texRef.filterMode = cudaFilterModePoint;
 	texRef.addressMode[0] = cudaAddressModeClamp;
 	texRef.addressMode[1] = cudaAddressModeClamp;
-	texRef.filterMode = cudaFilterModePoint;
 
 	cudaBindTexture2D(0, &texRef, dLinearPitchTextureData, &texChannelDesc, imageWidth, imageHeight, texPitch);
 }
 
 void createTextureFrom2DArray()
 {
-	//TODO: Define texture (texRef) parameters
-
-	//TODO: Define texture channel descriptor (texChannelDesc)
-	//texChannelDesc = ...
+	//Texture settings
+	texChannelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+	texRef.normalized = false;
+	texRef.filterMode = cudaFilterModePoint;
+	texRef.addressMode[0] = cudaAddressModeClamp;
+	texRef.addressMode[1] = cudaAddressModeClamp;
 
 	//Converts custom image data to float and stores result in the float_linear_data
 	float *dLinearTextureData = 0;
 	cudaMalloc((void **)&dLinearTextureData, imageWidth * imageHeight * sizeof(float));
 	switch (imageBPP)
 	{
-		//TODO: Here call your kernel to convert image into linear memory (no pitch!!!)
+	case 8:
+		colorToFloat<8><<<ks.dimGrid, ks.dimBlock>>>(dImageData, imageWidth, imageHeight, imagePitch, imageWidth, dLinearTextureData);
+		break;
+	case 16:
+		colorToFloat<16><<<ks.dimGrid, ks.dimBlock>>>(dImageData, imageWidth, imageHeight, imagePitch, imageWidth, dLinearTextureData);
+		break;
+	case 24:
+		colorToFloat<24><<<ks.dimGrid, ks.dimBlock>>>(dImageData, imageWidth, imageHeight, imagePitch, imageWidth, dLinearTextureData);
+		break;
+	case 32:
+		colorToFloat<32><<<ks.dimGrid, ks.dimBlock>>>(dImageData, imageWidth, imageHeight, imagePitch, imageWidth, dLinearTextureData);
+		break;
 	}
-
 	cudaMallocArray(&dArrayTextureData, &texChannelDesc, imageWidth, imageHeight);
-
-	//TODO: copy data into cuda array (dArrayTextureData)
-	//cudaMemcpyToArray(...);
-
-	//TODO: Bind texture
-	//cudaBind...
+	cudaMemcpyToArray(dArrayTextureData, 0, 0, dLinearTextureData, imageWidth * imageHeight * sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaBindTextureToArray(&texRef, dArrayTextureData, &texChannelDesc);
 
 	cudaFree(dLinearTextureData);
 }
@@ -122,10 +131,13 @@ void releaseMemory()
 
 __global__ void texKernel(const unsigned int texWidth, const unsigned int texHeight, float *dst)
 {
-	int row = blockIdx.y * blockDim.y + threadIdx.y;
-	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	int ty = blockIdx.y * blockDim.y + threadIdx.y;
+	int tx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	//TODO some kernel
+	if ((tx < texWidth) && (ty < texHeight))
+	{
+		dst[ty * texWidth + tx] = tex2D(texRef, tx, ty);
+	}
 }
 
 int main(int argc, char *argv[])

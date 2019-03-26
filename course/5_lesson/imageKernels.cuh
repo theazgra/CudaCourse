@@ -11,12 +11,7 @@
 /// <param name="dstPitch">	The pitch of dst. </param>
 /// <param name="dst">   	[in,out] If non-null, destination for the. </param>
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-template<unsigned int srcBPP>__global__ void colorToFloat(	const unsigned char * __restrict__ src, 
-															const unsigned int srcWidth, 
-															const unsigned int srcHeight, 
-															const unsigned int srcPitch, 
-															const unsigned int dstPitch, 
-															float* __restrict__ dst )
+template<unsigned int srcBPP>__global__ void colorToFloat(const unsigned char * __restrict__ src, const unsigned int srcWidth, const unsigned int srcHeight, const unsigned int srcPitch, const unsigned int dstPitch, float* __restrict__ dst )
 {
 	unsigned int tx = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int ty = blockIdx.y * blockDim.y + threadIdx.y;
