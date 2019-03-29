@@ -58,11 +58,11 @@ bool all_not_eq(const std::vector<T> &data, const T &cmp)
     return true;
 }
 
-struct KernelSetting
-{
-    dim3 dimGrid;
-    dim3 dimBlock;
-};
+// struct KernelSetting
+// {
+//     dim3 dimGrid;
+//     dim3 dimBlock;
+// };
 
 template <typename T>
 void safe_cuda_free(T *ptr)
