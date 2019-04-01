@@ -70,7 +70,7 @@ __global__ void floatHeighmapTextureToNormalmap(const unsigned int texWidth, con
 
 			unsigned int dstOffset = (tIdY * dstPitch) + tIdX;
 			dst[dstOffset].x = (zVal + 1) * 127.5f;
-			dst[dstOffset].y = (sobelY + 1) * 127.5f;
+			dst[dstOffset].y = 255.0f - (sobelY + 1) * 127.5f;
 			dst[dstOffset].z = (sobelX + 1) * 127.5f;
 		}
 
@@ -149,7 +149,8 @@ void loadSourceImage(const char *imageFileName)
 void createSrcTexure()
 {
 	//Floating Point Texture Data
-	HANDLE_ERROR(cudaMallocPitch((void **)&dSrcTexData, &srcTexPitch, srcImageWidth * sizeof(float), srcImageHeight));
+	HANDLE_ERROR(cudaMallocPitch((void **)&dSrcTexData, &srcTexPitch,
+								 srcImageWidth * sizeof(float), srcImageHeight));
 
 	//Converts custom image data to float and stores result in the float_pitch_linear_data
 	switch (srcImageBPP)
