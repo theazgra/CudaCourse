@@ -32,8 +32,8 @@ __global__ static void generate_random_population(CellGridInfo gridInfo, RandomG
         {
             float f1 = curand_uniform(&rng.state[rngStateOffset]);
             float f2 = curand_uniform(&rng.state[rngStateOffset]);
-            int x = (int)(f1 * (rng.xMax - rng.xMin) + 0.999999);
-            int y = (int)(f2 * (rng.yMax - rng.yMin) + 0.999999);
+            int x = rng.xMin + ((int)(f1 * (rng.xMax - rng.xMin) + 0.999999));
+            int y = rng.yMin + ((int)(f2 * (rng.yMax - rng.yMin) + 0.999999));
 
             *((Cell *)((char *)gridInfo.data + tIdY * gridInfo.pitch) + tIdX) = Cell(x, y);
             //T* pElement = (T*)((char*)BaseAddress + Row * pitch) + Column;
