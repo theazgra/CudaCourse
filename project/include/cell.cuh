@@ -7,6 +7,7 @@ struct Cell
 {
     int x = -1;
     int y = -1;
+    unsigned char fitness = 0;
 
     __device__ __host__ Cell()
     {

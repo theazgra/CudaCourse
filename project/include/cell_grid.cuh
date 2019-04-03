@@ -1,6 +1,8 @@
 #pragma once
 #include <cell.cuh>
 #include <evolution_kernels.cuh>
+#include <image.h>
+#include <time.h>
 
 class CellGrid
 {
@@ -8,22 +10,25 @@ private:
   // Grid dimensions.
   size_t width = 0;
   size_t height = 0;
+  size_t textureWidth = 0;
+  size_t textureHeight = 0;
   KernelSettings kernelSettings;
   // Fitness.
   float lastPopulationFitness = 0.0f;
 
   // Memory
-  size_t currPopMemoryPitch;
-  size_t nextPopMemoryPitch;
+  size_t currPopPitch;
+  size_t nextPopPitch;
   Cell *device_currPopMemory = nullptr;
   Cell *device_nextPopMemory = nullptr;
+  void print_cell_grid(bool fitness = false) const;
 
-  void print_cell_grid() const;
+  void create_fitness_texture(const Image &fitnessImage);
 
 public:
   CellGrid(const size_t width, const size_t height, KernelSettings kernelSettings);
   ~CellGrid();
-  void initialize_grid();
+  void initialize_grid(const Image &fitnessImage);
   void evolve();
   float get_average_fitness() const;
 };

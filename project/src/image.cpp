@@ -24,6 +24,11 @@ int Image::channel_count() const
     return _channels;
 }
 
+ImageType Image::image_type() const
+{
+    return type;
+}
+
 unsigned char *Image::data() const
 {
     return _data;
