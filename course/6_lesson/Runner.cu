@@ -66,12 +66,12 @@ __global__ void floatHeighmapTextureToNormalmap(const unsigned int texWidth, con
 			float sobelX = (-1.0f * tl) + (-2.0f * tex2D(srcTexRef, tIdX - 1, tIdY)) + (-1.0f * bl) + tr + (2.0f * tex2D(srcTexRef, tIdX + 1, tIdY)) + br;
 			float sobelY = tl + (2.0f * tex2D(srcTexRef, tIdX, tIdY - 1)) + tr + (-1.0f * bl) + (-2.0f * tex2D(srcTexRef, tIdX, tIdY + 1)) + (-1.0f * br);
 
-			tIdX += strideX;
-
 			unsigned int dstOffset = (tIdY * dstPitch) + tIdX;
 			dst[dstOffset].x = (zVal + 1) * 127.5f;
 			dst[dstOffset].y = 255.0f - (sobelY + 1) * 127.5f;
 			dst[dstOffset].z = (sobelX + 1) * 127.5f;
+
+			tIdX += strideX;
 		}
 
 		tIdY += strideY;

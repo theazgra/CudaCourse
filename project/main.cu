@@ -7,6 +7,8 @@
 #include <fitness_texture.cuh>
 
 constexpr int NumberOfEvolutions = 500;
+constexpr int BlockDimensionSize = 16;
+constexpr int CellGridDimension = 500;
 
 void load_fitness_image_into_texture(const char *imageFileName, ImageType imageType)
 {
@@ -17,11 +19,11 @@ void load_fitness_image_into_texture(const char *imageFileName, ImageType imageT
     size_t pitchedMemoryWidth = img.width() * sizeof(byte) * img.channel_count();
     size_t pitchedMemoryHeight = img.height();
 
-    // HANDLE_ERROR(cudaMallocPitch((void **)&device_fitnessTextureData, &fitnessTexturePitch, pitchedMemoryWidth, pitchedMemoryHeight));
-    // HANDLE_ERROR(cudaMemcpy2D(device_fitnessTextureData, fitnessTexturePitch, img.data(), pitchedMemoryWidth, pitchedMemoryWidth, img.height(), cudaMemcpyHostToDevice));
+    // CUDA_CALL(cudaMallocPitch((void **)&device_fitnessTextureData, &fitnessTexturePitch, pitchedMemoryWidth, pitchedMemoryHeight));
+    // CUDA_CALL(cudaMemcpy2D(device_fitnessTextureData, fitnessTexturePitch, img.data(), pitchedMemoryWidth, pitchedMemoryWidth, img.height(), cudaMemcpyHostToDevice));
 
-    HANDLE_ERROR(cudaMallocPitch((void **)&fitnessTexture.device_data, &fitnessTexture.memoryPitch, pitchedMemoryWidth, pitchedMemoryHeight));
-    HANDLE_ERROR(cudaMemcpy2D(fitnessTexture.device_data, fitnessTexture.memoryPitch, img.data(), pitchedMemoryWidth, pitchedMemoryWidth, img.height(), cudaMemcpyHostToDevice));
+    CUDA_CALL(cudaMallocPitch((void **)&fitnessTexture.device_data, &fitnessTexture.memoryPitch, pitchedMemoryWidth, pitchedMemoryHeight));
+    CUDA_CALL(cudaMemcpy2D(fitnessTexture.device_data, fitnessTexture.memoryPitch, img.data(), pitchedMemoryWidth, pitchedMemoryWidth, img.height(), cudaMemcpyHostToDevice));
 
     switch (imageType)
     {
@@ -40,55 +42,29 @@ void load_fitness_image_into_texture(const char *imageFileName, ImageType imageT
     fitnessTextureRef.addressMode[0] = cudaAddressModeClamp;
     fitnessTextureRef.addressMode[1] = cudaAddressModeClamp;
 
-    //HANDLE_ERROR(cudaBindTexture2D(0, &fitnessTextureRef, device_fitnessTextureData, &fitnessTextureCFD, img.width(), img.height(), fitnessTexturePitch));
-    HANDLE_ERROR(cudaBindTexture2D(0, &fitnessTextureRef, fitnessTexture.device_data, &fitnessTexture.textureCFD, img.width(), img.height(), fitnessTexture.memoryPitch));
-}
-
-__global__ void readTexIntoMem(byte *arr, const int width, const int height)
-{
-    int tidX = (blockIdx.x * blockDim.x) + threadIdx.x;
-    int tidY = (blockIdx.y * blockDim.y) + threadIdx.y;
-
-    if (tidX < width && tidY < height)
-    {
-        // Why is texture 0?
-        //arr[(tidX * width) + tidY] = tex2D(fitnessTextureRef, tidX, tidY);
-        arr[(tidX * width) + tidY] = tex2D(fitnessTextureRef, tidX, tidY);
-    }
+    //CUDA_CALL(cudaBindTexture2D(0, &fitnessTextureRef, device_fitnessTextureData, &fitnessTextureCFD, img.width(), img.height(), fitnessTexturePitch));
+    CUDA_CALL(cudaBindTexture2D(0, &fitnessTextureRef, fitnessTexture.device_data, &fitnessTexture.textureCFD, img.width(), img.height(), fitnessTexture.memoryPitch));
 }
 
 int main(int argc, char const *argv[])
 {
-    load_fitness_image_into_texture("../white.png", ImageType_GrayScale_8bpp);
-    const int N = 10 * 10;
-
-    byte *device_arr;
-    HANDLE_ERROR(cudaMalloc((void **)&device_arr, N * sizeof(byte)));
-    HANDLE_ERROR(cudaMemset(device_arr, 0, N * sizeof(byte)));
+    //load_fitness_image_into_texture("../white.png", ImageType_GrayScale_8bpp);
     KernelSettings ks = {};
-    ks.gridDimension = dim3(1, 1, 1);
-    ks.blockDimension = dim3(10, 10);
-    readTexIntoMem<<<ks.gridDimension, ks.blockDimension>>>(device_arr, 10, 10);
+    ks.blockDimension = dim3(BlockDimensionSize, BlockDimensionSize, 1);
+    ks.gridDimension = dim3(get_number_of_parts(CellGridDimension, BlockDimensionSize), get_number_of_parts(CellGridDimension, BlockDimensionSize), 1);
 
-    byte hostArr[N];
-    HANDLE_ERROR(cudaMemcpy(hostArr, device_arr, N * sizeof(byte), cudaMemcpyDeviceToHost));
-    for (size_t i = 0; i < 10; i++)
-    {
-        for (size_t j = 0; j < 10; j++)
-        {
-            printf("%u ", hostArr[(i * 10) + j]);
-        }
-        printf("\n");
-    }
+    CellGrid grid(CellGridDimension, CellGridDimension, ks);
+    grid.initialize_grid();
 
-    HANDLE_ERROR(cudaFree(device_arr));
+    // for (size_t evolutionStep = 0; evolutionStep < NumberOfEvolutions; evolutionStep++)
+    // {
+    //     grid.evolve();
+    //     float popFitness = grid.get_average_fitness();
+    //     printf("Fitness of current population: %5f.5\n", popFitness);
+    // }
 
-    // //TODO: Set kernel settings.
-    // KernelSettings ks = {};
-    // CellGrid grid(10, 10, ks);
-    // grid.initialize_grid();
+    // CUDA_CALL(cudaUnbindTexture(fitnessTextureRef));
+    // CUDA_CALL(cudaFree(fitnessTexture.device_data));
 
-    // HANDLE_ERROR(cudaUnbindTexture(fitnessTextureRef));
-    // HANDLE_ERROR(cudaFree(device_fitnessTextureData));
     return 0;
 }
