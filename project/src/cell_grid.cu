@@ -71,27 +71,172 @@ __global__ void evolve_kernel(const CellGridInfo currPop, CellGridInfo nextPop)
         tIdY = (blockIdx.y * blockDim.y) + threadIdx.y;
         while (tIdY < currPop.height)
         {
+            //__syncthreads();
             Cell *cell = ((Cell *)((char *)currPop.data + tIdY * currPop.pitch) + tIdX);
-            cell->fitness = tex2D<byte>(fitnessTexRef, cell->x, cell->y);
+            cell->fitness = (float)tex2D<byte>(fitnessTexRef, cell->x, cell->y);
 
-            //
-            /*
-            //TODO: Get cell from pitched memory.
-            Cell *c = nullptr;
-            //TODO: Do we allow different neighborhoods?
-            Cell neighborhood[8];
-            c->get_sorted_neighborhood(currentPopulation, tIdX, tIdY, neighborhood);
-            Cell offspring(&neighborhood[0], &neighborhood[1]);
-            offspring.random_mutation();
+            // We can't find partner in cell code, becuse we don't know the fitness value.
+            // We would have to do 2 iteratios of this loops. One beforehand to just setup fitness value,
+            // then synchronize all threads and find the mating partner.
 
-            //TODO: Which cell do we replace in next population? Worst in neighborhood, one parent?
-            //      Replace the cell in next population.
-            */
+            Cell *partner = nullptr;
+            float bestFitness = -1;
+            {
+                // L5 cross
+                Cell *topCell = ((Cell *)((char *)currPop.data + mod(tIdY - 1, currPop.height) * currPop.pitch) + tIdX);
+                Cell *bottomCell = ((Cell *)((char *)currPop.data + mod(tIdY + 1, currPop.height) * currPop.pitch) + tIdX);
+                Cell *leftCell = ((Cell *)((char *)currPop.data + tIdY * currPop.pitch) + mod(tIdX - 1, currPop.width));
+                Cell *rightCell = ((Cell *)((char *)currPop.data + tIdY * currPop.pitch) + mod(tIdX + 1, currPop.width));
+
+                float topCellFitness = (float)tex2D<byte>(fitnessTexRef, topCell->x, topCell->y);
+                float bottomCellFitness = (float)tex2D<byte>(fitnessTexRef, bottomCell->x, bottomCell->y);
+                float leftCellFitness = (float)tex2D<byte>(fitnessTexRef, leftCell->x, leftCell->y);
+                float rightCellFitness = (float)tex2D<byte>(fitnessTexRef, rightCell->x, rightCell->y);
+
+                partner = topCell;
+                bestFitness = topCellFitness;
+
+                if (bottomCellFitness > bestFitness)
+                {
+                    bestFitness = bottomCellFitness;
+                    partner = bottomCell;
+                }
+                if (leftCellFitness > bestFitness)
+                {
+                    bestFitness = leftCellFitness;
+                    partner = leftCell;
+                }
+                if (rightCellFitness > bestFitness)
+                {
+                    bestFitness = rightCellFitness;
+                    partner = rightCell;
+                }
+            }
+
+            Cell offspring = Cell(cell, partner);
+            // offspring.random_mutation();
+            offspring.fitness = (float)tex2D<byte>(fitnessTexRef, offspring.x, offspring.y);
+            *((Cell *)((char *)nextPop.data + tIdY * nextPop.pitch) + tIdX) = offspring; // Cell(cell, partner);
+
             tIdY += strideY;
         }
-
         tIdX += strideX;
     }
+}
+
+__global__ void cell_grid_fitness_reduce(CellGridInfo grid, float *fitness)
+{
+    __shared__ float sharedSum[ThreadsPerBlock];
+    //https://github.com/mark-poscablo/gpu-sum-reduction/blob/master/sum_reduction/reduce.cu
+    //https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
+
+    uint tIdX = (blockIdx.x * blockDim.x) + threadIdx.x;
+    uint tIdY = (blockIdx.y * blockDim.y) + threadIdx.y;
+    uint strideX = blockDim.x * gridDim.x;
+    uint strideY = blockDim.y * gridDim.y;
+    uint next = ThreadsPerBlock;
+
+    //float *srcVal = &sharedSum[tIdX];
+    //float *srcVal2 = &((grid.data + (tIdX + next))->fitness);
+
+    // Cell *src = &sharedSum[tIdX];
+    // Cell *src2 = grid.data + (tIdX + next);
+    // *src = grid.data + tIdX;
+
+    /*
+    __shared__ float3 sForces[TPB]; //SEE THE WARNING MESSAGE !!!
+    unsigned int tid = threadIdx.x;
+    unsigned int next = TPB; //SEE THE WARNING MESSAGE !!!
+
+    float3 *src = &sForces[tid];
+    float3 *src2 = (float3 *)&dForces[tid + next];
+
+    *src = dForces[tid];
+
+    src->x += src2->x;
+    src->y += src2->y;
+    src->z += src2->z;
+
+    __syncthreads();
+
+    //next/2
+    next >>= 1; //=64
+    if (tid >= next)
+        return;
+
+    src2 = src + next;
+
+    src->x += src2->x;
+    src->y += src2->y;
+    src->z += src2->z;
+
+    __syncthreads();
+
+    next >>= 1; //=32
+    if (tid >= next)
+        return;
+
+    volatile float3 *vsrc = &sForces[tid];
+    volatile float3 *vsrc2 = vsrc + next;
+
+    vsrc->x += vsrc2->x;
+    vsrc->y += vsrc2->y;
+    vsrc->z += vsrc2->z;
+
+    next >>= 1; //=16
+    if (tid >= next)
+        return;
+
+    vsrc2 = vsrc + next;
+
+    vsrc->x += vsrc2->x;
+    vsrc->y += vsrc2->y;
+    vsrc->z += vsrc2->z;
+
+    next >>= 1; //=8
+    if (tid >= next)
+        return;
+
+    vsrc2 = vsrc + next;
+
+    vsrc->x += vsrc2->x;
+    vsrc->y += vsrc2->y;
+    vsrc->z += vsrc2->z;
+
+    next >>= 1; //=4
+    if (tid >= next)
+        return;
+
+    vsrc2 = vsrc + next;
+
+    vsrc->x += vsrc2->x;
+    vsrc->y += vsrc2->y;
+    vsrc->z += vsrc2->z;
+
+    next >>= 1; //=2
+    if (tid >= next)
+        return;
+
+    vsrc2 = vsrc + next;
+
+    vsrc->x += vsrc2->x;
+    vsrc->y += vsrc2->y;
+    vsrc->z += vsrc2->z;
+
+    next >>= 1; //=1
+    if (tid >= next)
+        return;
+
+    vsrc2 = vsrc + next;
+
+    vsrc->x += vsrc2->x;
+    vsrc->y += vsrc2->y;
+    vsrc->z += vsrc2->z;
+
+    dFinalForce->x = vsrc->x;
+    dFinalForce->y = vsrc->y;
+    dFinalForce->z = vsrc->z;
+    */
 }
 
 ////////////////////////////////////////////////// END OF KERNELS /////////////////////////////////////////////////////////////////////
@@ -186,14 +331,14 @@ void CellGrid::initialize_grid(const Image &fitnessImage)
     //print_cell_grid();
 }
 
-void CellGrid::print_cell_grid(bool fitness) const
+void CellGrid::print_cell_grid(const Cell *data, const size_t pitch, bool fitness) const
 {
     if (device_currPopMemory == nullptr)
         return;
 
     Cell *tmpMemory;
-    CUDA_CALL(cudaHostAlloc((void **)&tmpMemory, currPopPitch * height, cudaHostAllocWriteCombined));
-    CUDA_CALL(cudaMemcpy(tmpMemory, device_currPopMemory, currPopPitch * height, cudaMemcpyDeviceToHost));
+    CUDA_CALL(cudaHostAlloc((void **)&tmpMemory, pitch * height, cudaHostAllocWriteCombined));
+    CUDA_CALL(cudaMemcpy(tmpMemory, data, pitch * height, cudaMemcpyDeviceToHost));
 
     Cell *dataPtr = tmpMemory;
     for (size_t row = 0; row < height; row++)
@@ -201,12 +346,12 @@ void CellGrid::print_cell_grid(bool fitness) const
         for (size_t col = 0; col < width; col++)
         {
             if (fitness)
-                printf("%3i ", dataPtr[col].fitness);
+                printf("%2.1f ", dataPtr[col].fitness);
             else
                 printf("[%i;%i] ", dataPtr[col].x, dataPtr[col].y);
         }
         printf("\n");
-        dataPtr = (Cell *)(((char *)dataPtr) + currPopPitch);
+        dataPtr = (Cell *)(((char *)dataPtr) + pitch);
     }
 
     CUDA_CALL(cudaFreeHost(tmpMemory));
@@ -234,22 +379,30 @@ void CellGrid::evolve()
     evolve_kernel<<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, nextPop);
     CUDA_TIMED_BLOCK_END;
 
-    device_currPopMemory = device_nextPopMemory;
+    print_cell_grid(device_currPopMemory, currPopPitch, true);
+    printf("--------------------------------------------------------------------------------\n");
+    print_cell_grid(device_nextPopMemory, nextPopPitch, true);
+    //TODO: Swap!
+    //device_currPopMemory = device_nextPopMemory;
 }
 
 float CellGrid::get_average_fitness() const
 {
-    //TODO: Get fitness from current population grid by reduction.
-    // float fitnessSum = 0;
+    float *device_sum;
+    CUDA_CALL(cudaMalloc((void **)&device_sum, sizeof(float)));
 
-    // CellGridInfo currPop = {};
-    // currPop.data = device_currPopMemory;
-    // currPop.memoryPitch = currPopPitch;
-    // currPop.width = width;
-    // currPop.height = height;
+    CellGridInfo currPop = {};
+    currPop.data = device_currPopMemory;
+    currPop.pitch = currPopPitch;
+    currPop.width = width;
+    currPop.height = height;
 
-    // get_finess_kernel<<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(&currPop, &fitnessSum);
+    float cellCount = (float)(width * height);
+    cell_grid_fitness_reduce<<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, device_sum);
 
-    // fitnessSum /= (width * height);
-    // return fitnessSum;
+    float fitnessSum = 0;
+    CUDA_CALL(cudaMemcpy(&fitnessSum, device_sum, sizeof(float), cudaMemcpyDeviceToHost));
+
+    float avgFitness = fitnessSum / cellCount;
+    return avgFitness;
 }

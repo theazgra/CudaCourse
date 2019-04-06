@@ -2,9 +2,12 @@
 #include <cassert>
 #include <stdio.h>
 #include <cuda_runtime_api.h>
+#include <device_launch_parameters.h>
 
 typedef unsigned char byte;
 typedef unsigned int uint;
+
+constexpr int ThreadsPerBlock = 16;
 
 static void HandleError(cudaError_t err,
                         const char *file,
@@ -79,3 +82,5 @@ __host__ void print_device_memory(const T *device_memory, size_t pitch, size_t w
 
     CUDA_CALL(cudaFreeHost(tmpMemory));
 }
+
+__forceinline__ __device__ __host__ int mod(const int x, const int m) { return (x % m + m) % m; }

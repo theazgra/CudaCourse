@@ -4,20 +4,21 @@
 #include <cell_grid.cuh>
 
 constexpr int NumberOfEvolutions = 500;
-constexpr int BlockDimensionSize = 16;
 constexpr int CellGridDimension = 15;
 
 int main(int argc, char const *argv[])
 {
     KernelSettings ks = {};
-    ks.blockDimension = dim3(BlockDimensionSize, BlockDimensionSize, 1);
-    ks.gridDimension = dim3(get_number_of_parts(CellGridDimension, BlockDimensionSize), get_number_of_parts(CellGridDimension, BlockDimensionSize), 1);
+    ks.blockDimension = dim3(ThreadsPerBlock, ThreadsPerBlock, 1);
+    ks.gridDimension = dim3(get_number_of_parts(CellGridDimension, ThreadsPerBlock), get_number_of_parts(CellGridDimension, ThreadsPerBlock), 1);
 
     CellGrid grid(CellGridDimension, CellGridDimension, ks);
     Image fitnessImage = Image("../test15x15.png", ImageType_GrayScale_8bpp);
     grid.initialize_grid(fitnessImage);
 
     grid.evolve();
+    float avgFit = grid.get_average_fitness();
+    printf("Average fitness: %f.3\n", avgFit);
 
     // for (size_t evolutionStep = 0; evolutionStep < NumberOfEvolutions; evolutionStep++)
     // {
