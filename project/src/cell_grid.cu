@@ -48,7 +48,9 @@ __global__ void generate_random_population(CellGridInfo gridInfo, RandomGenerato
             int x = rng.xMin + ((int)(f1 * (rng.xMax - rng.xMin) + 0.999999));
             int y = rng.yMin + ((int)(f2 * (rng.yMax - rng.yMin) + 0.999999));
 
-            *((Cell *)((char *)gridInfo.data + tIdY * gridInfo.pitch) + tIdX) = Cell(x, y);
+            Cell rnd(x,y);
+            rnd.fitness = tex2D<byte>(fitnessTexRef, x, y);
+            *((Cell *)((char *)gridInfo.data + tIdY * gridInfo.pitch) + tIdX) = rnd; // Cell(x, y);
             //T* pElement = (T*)((char*)BaseAddress + Row * pitch) + Column;
 
             tIdY += strideY;
@@ -73,7 +75,9 @@ __global__ void evolve_kernel(const CellGridInfo currPop, CellGridInfo nextPop)
         {
             //__syncthreads();
             Cell *cell = ((Cell *)((char *)currPop.data + tIdY * currPop.pitch) + tIdX);
-            cell->fitness = (float)tex2D<byte>(fitnessTexRef, cell->x, cell->y);
+
+            // Initial fitness value is set in initialization code.
+            //cell->fitness = (float)tex2D<byte>(fitnessTexRef, cell->x, cell->y);
 
             // We can't find partner in cell code, becuse we don't know the fitness value.
             // We would have to do 2 iteratios of this loops. One beforehand to just setup fitness value,
@@ -116,10 +120,32 @@ __global__ void evolve_kernel(const CellGridInfo currPop, CellGridInfo nextPop)
             Cell offspring = Cell(cell, partner);
             // offspring.random_mutation();
             offspring.fitness = (float)tex2D<byte>(fitnessTexRef, offspring.x, offspring.y);
+            //offspring.fitness = 1.0f;
             *((Cell *)((char *)nextPop.data + tIdY * nextPop.pitch) + tIdX) = offspring; // Cell(cell, partner);
 
             tIdY += strideY;
         }
+        tIdX += strideX;
+    }
+}
+
+__global__ void stupid_reduce(CellGridInfo grid, float *colSum)
+{
+    uint tIdX = (blockIdx.x * blockDim.x) + threadIdx.x;
+    uint strideX = blockDim.x * gridDim.x;
+
+    while (tIdX < grid.width)
+    {
+        //Calculate the sum of the column;
+        //colSum[tIdX] = 1.0f;
+
+        for (uint row = 0; row < grid.height; row++)
+        {
+            Cell *cell = ((Cell *)((char *)grid.data + row * grid.pitch) + tIdX);
+            colSum[tIdX] += cell->fitness;
+        }
+
+
         tIdX += strideX;
     }
 }
@@ -136,11 +162,10 @@ __global__ void cell_grid_fitness_reduce(CellGridInfo grid, float *fitness)
     uint strideY = blockDim.y * gridDim.y;
     uint next = ThreadsPerBlock;
 
-    //float *srcVal = &sharedSum[tIdX];
-    //float *srcVal2 = &((grid.data + (tIdX + next))->fitness);
+    float *srcVal = &sharedSum[tIdX];
+    float *srcVal2 = &((grid.data + (tIdX + next))->fitness);
 
-    // Cell *src = &sharedSum[tIdX];
-    // Cell *src2 = grid.data + (tIdX + next);
+    // ((Cell *)((char *)grid.data + currPop.pitch) + tIdX);
     // *src = grid.data + tIdX;
 
     /*
@@ -319,6 +344,7 @@ void CellGrid::initialize_grid(const Image &fitnessImage)
     rng.yMin = 0;
     rng.xMax = textureWidth;
     rng.yMax = textureHeight;
+    printf("RNG interval xMax: %u yMax: %u\n", rng.xMax, rng.yMax);
     rng.state = device_randomStates;
 
     CUDA_TIMED_BLOCK_START("Initial population generation");
@@ -328,7 +354,8 @@ void CellGrid::initialize_grid(const Image &fitnessImage)
     CUDA_CALL(cudaFree(device_randomStates));
     // CUDA_CALL(cudaPeekAtLastError());
     // CUDA_CALL(cudaDeviceSynchronize());
-    //print_cell_grid();
+    //print_cell_grid(device_currPopMemory, currPopPitch, true);
+    printf("Grid initialized\n");
 }
 
 void CellGrid::print_cell_grid(const Cell *data, const size_t pitch, bool fitness) const
@@ -379,17 +406,28 @@ void CellGrid::evolve()
     evolve_kernel<<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, nextPop);
     CUDA_TIMED_BLOCK_END;
 
-    print_cell_grid(device_currPopMemory, currPopPitch, true);
-    printf("--------------------------------------------------------------------------------\n");
-    print_cell_grid(device_nextPopMemory, nextPopPitch, true);
-    //TODO: Swap!
+    //print_cell_grid(device_currPopMemory, currPopPitch, true);
+    //printf("--------------------------------------------------------------------------------\n");
+    //print_cell_grid(device_nextPopMemory, nextPopPitch, true);
     //device_currPopMemory = device_nextPopMemory;
+
+    //CUDA_CALL(cudaMemcpy(device_currPopMemory, device_nextPopMemory, sizeof(Cell)*width*height, cudaMemcpyDeviceToDevice));
+
+    
+    Cell *tmp = device_currPopMemory;
+    device_currPopMemory = device_nextPopMemory;
+    device_nextPopMemory = tmp;
+    
 }
 
 float CellGrid::get_average_fitness() const
 {
-    float *device_sum;
-    CUDA_CALL(cudaMalloc((void **)&device_sum, sizeof(float)));
+    //float *device_sum;
+    //CUDA_CALL(cudaMalloc((void **)&device_sum, sizeof(float)));
+
+    float *device_colSums;
+    CUDA_CALL(cudaMalloc((void **)&device_colSums, sizeof(float) * width));
+    CUDA_CALL(cudaMemset(device_colSums, 0, sizeof(float) * width));
 
     CellGridInfo currPop = {};
     currPop.data = device_currPopMemory;
@@ -397,12 +435,30 @@ float CellGrid::get_average_fitness() const
     currPop.width = width;
     currPop.height = height;
 
-    float cellCount = (float)(width * height);
-    cell_grid_fitness_reduce<<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, device_sum);
+    //float cellCount = (float)(width * height);
+    //cell_grid_fitness_reduce<<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, device_sum);
 
-    float fitnessSum = 0;
-    CUDA_CALL(cudaMemcpy(&fitnessSum, device_sum, sizeof(float), cudaMemcpyDeviceToHost));
+    dim3 bd = dim3(32,1,1);
+    dim3 gd = dim3(get_number_of_parts(width, 32),1,1);
+    stupid_reduce<<< gd,bd >>>(currPop, device_colSums);
 
-    float avgFitness = fitnessSum / cellCount;
-    return avgFitness;
+    float sum = 0.0f;
+    float *colSums;
+
+    colSums = (float *) ::operator new(sizeof(float) * width);
+    CUDA_CALL(cudaMemcpy(colSums, device_colSums, sizeof(float) * width, cudaMemcpyDeviceToHost));
+    for (uint col = 0; col < width; col++)
+        sum += colSums[col];
+
+    CUDA_CALL(cudaFree(device_colSums));
+    free(colSums);
+    
+
+    return (sum / (float)(width*height) );
+
+
+    //float fitnessSum = 0;
+    //CUDA_CALL(cudaMemcpy(&fitnessSum, device_sum, sizeof(float), cudaMemcpyDeviceToHost));
+    //float avgFitness = fitnessSum / cellCount;
+    //return avgFitness;
 }
