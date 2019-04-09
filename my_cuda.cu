@@ -7,6 +7,7 @@
 #include <time.h>
 #include <random>
 #include <assert.h>
+#include <device_launch_parameters.h>
 
 typedef unsigned char byte;
 

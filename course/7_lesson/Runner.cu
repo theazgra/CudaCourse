@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
+#include "../../my_cuda.cu"
 #ifdef _WIN32
 #define WINDOWS_LEAN_AND_MEAN
 #define NOMINMAX
@@ -73,9 +73,8 @@ __global__ void applyFilter(const unsigned char someValue, const unsigned int pb
 		tidy = (blockIdx.y * blockDim.y) + threadIdx.y;
 		while (tidy < pboHeight)
 		{
-
 			uchar4 px = tex2D<uchar4>(cudaTexRef, tidx / 4, tidy);
-			pbo[(tidy * pboWidth * 4) + tidx] = px.x + someValue;
+			pbo[(tidy * pboWidth * 4) + tidx] = someValue;
 			pbo[(tidy * pboWidth * 4) + tidx + 1] = px.y;
 			pbo[(tidy * pboWidth * 4) + tidx + 2] = px.z;
 			pbo[(tidy * pboWidth * 4) + tidx + 3] = px.w;
@@ -121,7 +120,9 @@ void cudaWorker()
 	someValue++;
 	if (someValue > 255)
 		someValue = 0;
+	CUDA_TIMED_BLOCK_START("apply_filter");
 	applyFilter<<<ks.dimGrid, ks.dimBlock>>>(someValue, imageWidth, imageHeight, pboData);
+	CUDA_TIMED_BLOCK_END;
 
 	//Following code release mapped resources, unbinds texture and ensures that PBO data will be coppied into OpenGL texture. Do not modify following code!
 	cudaUnbindTexture(&cudaTexRef);
