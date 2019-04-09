@@ -12,7 +12,7 @@
 // OpenGL Graphics includes
 // #include <glew.h>
 //#include <GL/glew.h>
-#include <GL/glew.h>
+// #include <GL/glew.h>
 #include <GL/glut.h>
 // #include <freeglut.h>
 #include <cudaDefs.h>
@@ -62,19 +62,23 @@ __global__ void applyFilter(const unsigned char someValue, const unsigned int pb
 {
 	//TODO 9: Create a filter that replaces Red spectrum of RGBA pbo such that RED=someValue
 	//
-	int tidx = (blockIdx.x * blockDim.x) + threadIdx.x;
+	int tidx = (blockIdx.x * blockDim.x) + threadIdx.x * 4;
 	int tidy = (blockIdx.y * blockDim.y) + threadIdx.y;
 	int stridex = blockDim.x * gridDim.x;
 	int stridey = blockDim.y * gridDim.y;
 
-	while (tidx < pboWidth)
+	while (tidx < pboWidth * 4)
 	{
 
 		tidy = (blockIdx.y * blockDim.y) + threadIdx.y;
 		while (tidy < pboHeight)
 		{
 
-			//TODO: Do something with the image.
+			uchar4 px = tex2D<uchar4>(cudaTexRef, tidx / 4, tidy);
+			pbo[(tidy * pboWidth * 4) + tidx] = px.x + someValue;
+			pbo[(tidy * pboWidth * 4) + tidx + 1] = px.y;
+			pbo[(tidy * pboWidth * 4) + tidx + 2] = px.z;
+			pbo[(tidy * pboWidth * 4) + tidx + 3] = px.w;
 
 			tidy += stridey;
 		}
@@ -257,8 +261,7 @@ void initGL(int argc, char **argv)
 
 	// initialize necessary OpenGL extensions
 	//glutInit()
-	glewInit();
-	//glutInit(nullptr, nullptr);
+	//glewInit();
 
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glShadeModel(GL_SMOOTH);
