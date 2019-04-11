@@ -15,7 +15,7 @@ int main(int argc, char const *argv[])
     CellGrid grid(CellGridDimension, CellGridDimension, ks);
     Image fitnessImage = Image("../images/radial.png", ImageType_GrayScale_8bpp);
     grid.initialize_grid(fitnessImage);
-    
+
     /*
     float avgFit = grid.get_average_fitness();
     printf("Before evolve: %.3f\n", avgFit);
@@ -28,6 +28,9 @@ int main(int argc, char const *argv[])
     uint iter = 0;
     double diff = 0;
 
+    // printf("Avg fitness: %f\n", grid.get_average_fitness());
+    // return 0;
+
     while (iter < NumberOfEvolutions && fitness != lastFitness)
     {
         lastFitness = fitness;
@@ -36,8 +39,8 @@ int main(int argc, char const *argv[])
         grid.evolve();
         fitness = grid.get_average_fitness();
         diff = fitness - lastFitness;
-        printf("Finished iteration %u, fitness: %.6f\t %s%.6f\n", iter+1, fitness,
-                diff>=0?"+":"-",diff);
+        printf("Finished iteration %u, fitness: %.6f\t %s%.6f\n", iter + 1, fitness,
+               diff >= 0 ? "+" : "-", diff);
     }
 
     return 0;
