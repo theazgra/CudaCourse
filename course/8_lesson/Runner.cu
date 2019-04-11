@@ -5,7 +5,7 @@
 constexpr uint ThreadPerBlock = 512;
 constexpr uint BlocksPerGrid = 1024;
 
-constexpr size_t ArraySize = 268435456;
+constexpr size_t ArraySize = 1000000;
 constexpr size_t ByteArraySize = ArraySize * sizeof(int);
 
 __global__ void find_max(int *memory, int *max)
