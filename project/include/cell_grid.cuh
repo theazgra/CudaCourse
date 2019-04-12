@@ -29,6 +29,6 @@ public:
   CellGrid(const size_t width, const size_t height, KernelSettings kernelSettings);
   ~CellGrid();
   void initialize_grid(const Image &fitnessImage);
-  void evolve();
-  float get_average_fitness() const;
+  void evolve(float &evolutionTime);
+  float get_average_fitness(float &reduceTime) const;
 };

@@ -40,11 +40,12 @@ static void HandleCurandError(int err, const char *file, int line)
     cudaEventCreate(&stopEvent);        \
     cudaEventRecord(startEvent, 0);
 
-#define CUDA_TIMED_BLOCK_END                                   \
+#define CUDA_TIMED_BLOCK_END(printTime)                        \
     cudaEventRecord(stopEvent, 0);                             \
     cudaEventSynchronize(stopEvent);                           \
     cudaEventElapsedTime(&elapsedTime, startEvent, stopEvent); \
-    printf("%s took: %f ms\n", ___tmdFnName, elapsedTime);     \
+    if (printTime)                                             \
+        printf("%s took: %f ms\n", ___tmdFnName, elapsedTime); \
     cudaEventDestroy(startEvent);                              \
     cudaEventDestroy(stopEvent);
 

@@ -16,32 +16,36 @@ int main(int argc, char const *argv[])
     Image fitnessImage = Image("../images/radial.png", ImageType_GrayScale_8bpp);
     grid.initialize_grid(fitnessImage);
 
-    /*
-    float avgFit = grid.get_average_fitness();
-    printf("Before evolve: %.3f\n", avgFit);
-    grid.evolve();
-    avgFit = grid.get_average_fitness();
-    printf("After evolve: %.3f\n", avgFit);
-    */
     float fitness = 0.0;
     float lastFitness = -1.0f;
     uint iter = 0;
     double diff = 0;
-
-    // printf("Avg fitness: %f\n", grid.get_average_fitness());
-    // return 0;
+    double averageEvolveTime = 0.0f;
+    double averageFitnessTime = 0.0f;
 
     while (iter < NumberOfEvolutions && fitness != lastFitness)
     {
+        float evolveTime, fitnessTime;
+
         lastFitness = fitness;
         ++iter;
 
-        grid.evolve();
-        fitness = grid.get_average_fitness();
+        grid.evolve(evolveTime);
+        averageEvolveTime += evolveTime;
+
+        fitness = grid.get_average_fitness(fitnessTime);
+        averageFitnessTime += fitnessTime;
+
         diff = fitness - lastFitness;
         printf("Finished iteration %u, fitness: %.6f\t %s%.6f\n", iter + 1, fitness,
                diff >= 0 ? "+" : "-", diff);
     }
+
+    averageEvolveTime /= (double)iter;
+    averageFitnessTime /= (double)iter;
+
+    printf("Average evolve time: %f ms\n", averageEvolveTime);
+    printf("Average fitness time: %f ms\n", averageFitnessTime);
 
     return 0;
 }

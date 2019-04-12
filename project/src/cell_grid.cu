@@ -49,8 +49,8 @@ __global__ void generate_random_population(CellGridInfo gridInfo, RandomGenerato
             int y = rng.yMin + ((int)(f2 * (rng.yMax - rng.yMin) + 0.999999));
 
             Cell rnd(x, y);
-            //rnd.fitness = tex2D<byte>(fitnessTexRef, x, y);
-            rnd.fitness = 1.0f;
+            rnd.fitness = tex2D<byte>(fitnessTexRef, x, y);
+            //rnd.fitness = 1.0f;
             // *((Cell *)((char *)gridInfo.data + tIdY * gridInfo.pitch) + tIdX) = rnd; // Cell(x, y);
             // T* pElement = (T*)((char*)BaseAddress + Row * pitch) + Column;
 
@@ -177,7 +177,7 @@ __device__ void warp_reduce(volatile float *sData, unsigned int tId)
 }
 
 template <unsigned int blockSize>
-__global__ void smart_reduce(CellGridInfo grid, float *sums, unsigned int n)
+__global__ void smart_reduce(CellGridInfo grid, unsigned int n, float *finalSum)
 {
     extern __shared__ float sData[];
     unsigned int tId = threadIdx.x;
@@ -224,7 +224,9 @@ __global__ void smart_reduce(CellGridInfo grid, float *sums, unsigned int n)
         warp_reduce<blockSize>(sData, tId);
 
     if (tId == 0)
-        sums[blockIdx.x] = sData[0];
+    {
+        atomicAdd(finalSum, sData[0]);
+    }
 }
 
 ////////////////////////////////////////////////// END OF KERNELS /////////////////////////////////////////////////////////////////////
@@ -317,7 +319,7 @@ void CellGrid::initialize_grid(const Image &fitnessImage)
 
     CUDA_TIMED_BLOCK_START("Initial population generation");
     generate_random_population<<<dim3(rngGridDim, rngGridDim, 1), dim3(rngBlockDim, rngBlockDim, 1)>>>(currPop, rng);
-    CUDA_TIMED_BLOCK_END;
+    CUDA_TIMED_BLOCK_END(true);
 
     CUDA_CALL(cudaFree(device_randomStates));
     // CUDA_CALL(cudaPeekAtLastError());
@@ -352,7 +354,7 @@ void CellGrid::print_cell_grid(const Cell *data, const size_t pitch, bool fitnes
     CUDA_CALL(cudaFreeHost(tmpMemory));
 }
 
-void CellGrid::evolve()
+void CellGrid::evolve(float &evolutionTime)
 {
     CellGridInfo currPop = {};
     currPop.data = device_currPopMemory;
@@ -372,7 +374,8 @@ void CellGrid::evolve()
 
     CUDA_TIMED_BLOCK_START("Evolve");
     evolve_kernel<<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, nextPop);
-    CUDA_TIMED_BLOCK_END;
+    CUDA_TIMED_BLOCK_END(false);
+    evolutionTime = elapsedTime;
 
     //print_cell_grid(device_currPopMemory, currPopPitch, true);
     //printf("--------------------------------------------------------------------------------\n");
@@ -386,7 +389,7 @@ void CellGrid::evolve()
     device_nextPopMemory = tmp;
 }
 
-float CellGrid::get_average_fitness() const
+float CellGrid::get_average_fitness(float &reduceTime) const
 {
     unsigned int n = width * height;
     constexpr unsigned int ReduceTPB = 512;
@@ -404,54 +407,19 @@ float CellGrid::get_average_fitness() const
     gridInfo.height = height;
 
     CUDA_TIMED_BLOCK_START("complete_smart_reduce");
-    float *device_sums;
-    CUDA_CALL(cudaMalloc((void **)&device_sums, numberOfBlocks * sizeof(float)));
+    float *device_finalSum;
+    CUDA_CALL(cudaMalloc((void **)&device_finalSum, sizeof(float)));
+    CUDA_CALL(cudaMemset(device_finalSum, 0, sizeof(float)));
 
-    smart_reduce<ReduceTPB><<<dimGrid, dimBlock, sMemSize>>>(gridInfo, device_sums, n);
+    smart_reduce<ReduceTPB><<<dimGrid, dimBlock, sMemSize>>>(gridInfo, n, device_finalSum);
 
-    float *hostSum = (float *)::operator new(numberOfBlocks * sizeof(float));
-    CUDA_CALL(cudaMemcpy(hostSum, device_sums, numberOfBlocks * sizeof(float), cudaMemcpyDeviceToHost));
     float sum = 0;
-    for (size_t i = 0; i < numberOfBlocks; i++)
-    {
-        sum += hostSum[i];
-    }
-
-    CUDA_CALL(cudaFree(device_sums));
-    free(hostSum);
+    CUDA_CALL(cudaMemcpy(&sum, device_finalSum, sizeof(float), cudaMemcpyDeviceToHost));
+    CUDA_CALL(cudaFree(device_finalSum));
 
     CUDA_CALL(cudaDeviceSynchronize());
-    CUDA_TIMED_BLOCK_END;
+    CUDA_TIMED_BLOCK_END(false);
+    reduceTime = elapsedTime;
+
     return sum / (float)n;
-
-    /*
-    float *device_colSums;
-    CUDA_CALL(cudaMalloc((void **)&device_colSums, sizeof(float) * width));
-    CUDA_CALL(cudaMemset(device_colSums, 0, sizeof(float) * width));
-
-    CellGridInfo currPop = {};
-    currPop.data = device_currPopMemory;
-    currPop.pitch = currPopPitch;
-    currPop.width = width;
-    currPop.height = height;
-
-    dim3 bd = dim3(32, 1, 1);
-    dim3 gd = dim3(get_number_of_parts(width, 32), 1, 1);
-    CUDA_TIMED_BLOCK_START("stupid_reduce");
-    stupid_reduce<<<gd, bd>>>(currPop, device_colSums);
-    CUDA_TIMED_BLOCK_END;
-
-    float sum = 0.0f;
-    float *colSums;
-
-    colSums = (float *)::operator new(sizeof(float) * width);
-    CUDA_CALL(cudaMemcpy(colSums, device_colSums, sizeof(float) * width, cudaMemcpyDeviceToHost));
-    for (uint col = 0; col < width; col++)
-        sum += colSums[col];
-
-    CUDA_CALL(cudaFree(device_colSums));
-    free(colSums);
-
-    return (sum / (float)(width * height));
-    */
 }
