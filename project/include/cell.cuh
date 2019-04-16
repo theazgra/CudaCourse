@@ -1,6 +1,7 @@
 #pragma once
-#include <cuda_runtime_api.h>
+#include "neighborhood_type.h"
 #include <cassert>
+#include <cuda_utils.cuh>
 
 struct Cell;
 struct CellGridInfo
@@ -32,6 +33,77 @@ struct __align__(16) Cell
         y = (parentA->y + parentB->y) / 2;
     }
 
+    template <NeighborhoodType neigh>
+    __device__ void get_neighborhood(const uint tIdX, const uint tIdY,
+                                     const CellGridInfo grid, Cell *neighborhood)
+    {
+        switch (neigh)
+        {
+        case NeighborhoodType_L5:
+        {
+            neighborhood[0] = grid.data[(mod(tIdY - 1, grid.height) * grid.width) + tIdX]; // Left
+            neighborhood[1] = grid.data[(mod(tIdY + 1, grid.height) * grid.width) + tIdX]; // Right
+            neighborhood[2] = grid.data[(tIdY * grid.width) + mod(tIdX - 1, grid.width)];  // Top
+            neighborhood[3] = grid.data[(tIdY * grid.width) + mod(tIdX + 1, grid.width)];  // Bottom
+        }
+        break;
+        case NeighborhoodType_L9:
+        {
+            neighborhood[0] = grid.data[(mod(tIdY - 1, grid.height) * grid.width) + tIdX]; // Left
+            neighborhood[1] = grid.data[(mod(tIdY + 1, grid.height) * grid.width) + tIdX]; // Right
+            neighborhood[2] = grid.data[(tIdY * grid.width) + mod(tIdX - 1, grid.width)];  // Top
+            neighborhood[3] = grid.data[(tIdY * grid.width) + mod(tIdX + 1, grid.width)];  // Bottom
+
+            neighborhood[4] = grid.data[(mod(tIdY - 2, grid.height) * grid.width) + tIdX]; // Left 2
+            neighborhood[5] = grid.data[(mod(tIdY + 2, grid.height) * grid.width) + tIdX]; // Right 2
+            neighborhood[6] = grid.data[(tIdY * grid.width) + mod(tIdX - 2, grid.width)];  // Top 2
+            neighborhood[7] = grid.data[(tIdY * grid.width) + mod(tIdX + 2, grid.width)];  // Bottom 2
+        }
+        break;
+        case NeighborhoodType_C9:
+        {
+            int fromRow = tIdY - 1;
+            int toRow = tIdY + 2;
+            int fromCol = tIdX - 1;
+            int toCol = tIdX + 2;
+
+            int i = 0;
+
+            for (int row = fromRow; row < toRow; row++)
+            {
+                for (int col = fromCol; col < toCol; col++)
+                {
+                    neighborhood[i++] = grid.data[((mod(row, grid.height) * grid.width) + mod(col, grid.width))];
+                }
+            }
+        }
+        break;
+        case NeighborhoodType_C13:
+        {
+            int fromRow = tIdY - 1;
+            int toRow = tIdY + 2;
+            int fromCol = tIdX - 1;
+            int toCol = tIdX + 2;
+
+            int i = 0;
+
+            for (int row = fromRow; row < toRow; row++)
+            {
+                for (int col = fromCol; col < toCol; col++)
+                {
+                    neighborhood[i++] = grid.data[((mod(row, grid.height) * grid.width) + mod(col, grid.width))];
+                }
+            }
+
+            neighborhood[i++] = grid.data[(mod(tIdY - 2, grid.height) * grid.width) + tIdX]; // Left 2
+            neighborhood[i++] = grid.data[(mod(tIdY + 2, grid.height) * grid.width) + tIdX]; // Right 2
+            neighborhood[i++] = grid.data[(tIdY * grid.width) + mod(tIdX - 2, grid.width)];  // Top 2
+            neighborhood[i++] = grid.data[(tIdY * grid.width) + mod(tIdX + 2, grid.width)];  // Bottom 2
+        }
+        break;
+        }
+    }
+
     /*
     __device__ Cell *find_partner(const CellGridInfo *grid, const uint tIdX, const uint tIdY)
     {
@@ -57,7 +129,8 @@ struct __align__(16) Cell
     }
     */
 
-    __device__ void random_mutation()
+    __device__ void
+    random_mutation()
     {
         //TODO: Do we want to apply random mutation?
     }

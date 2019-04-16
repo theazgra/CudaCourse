@@ -3,7 +3,8 @@
 Image::Image(const char *filename, ImageType type)
 {
     this->type = type;
-    _data = SOIL_load_image(filename, &_width, &_height, &_channels, (int)type);
+
+    _data = SOIL_load_image(filename, &_width, &_height, &_channels, channels_per_image_type(type));
 }
 
 Image::~Image()

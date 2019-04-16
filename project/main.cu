@@ -4,10 +4,12 @@
 #include <cell_grid.cuh>
 
 constexpr int NumberOfEvolutions = 1000;
-constexpr int CellGridDimension = 10000;
+constexpr int CellGridDimension = 5000; //10000
+constexpr size_t CellCount = CellGridDimension * CellGridDimension;
 
 int main(int argc, char const *argv[])
 {
+    printf("Cell count: %lu\n", CellCount);
     KernelSettings ks = {};
     ks.blockDimension = dim3(ThreadsPerBlock, ThreadsPerBlock, 1);
     ks.gridDimension = dim3(get_number_of_parts(CellGridDimension, ThreadsPerBlock), get_number_of_parts(CellGridDimension, ThreadsPerBlock), 1);
@@ -37,8 +39,7 @@ int main(int argc, char const *argv[])
         averageFitnessTime += fitnessTime;
 
         diff = fitness - lastFitness;
-        printf("Finished iteration %u, fitness: %.6f\t %s%.6f\n", iter + 1, fitness,
-               diff >= 0 ? "+" : "-", diff);
+        printf("Finished iteration %u, fitness: %.6f\t %.6f\n", iter + 1, fitness, diff); //diff >= 0 ? "+" : "-",
     }
 
     averageEvolveTime /= (double)iter;

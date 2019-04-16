@@ -63,6 +63,7 @@ __global__ void generate_random_population(CellGridInfo gridInfo, RandomGenerato
 }
 
 // This kernel will evole current population into new one.
+template <NeighborhoodType neigh>
 __global__ void evolve_kernel(const CellGridInfo currPop, CellGridInfo nextPop)
 {
 
@@ -79,82 +80,65 @@ __global__ void evolve_kernel(const CellGridInfo currPop, CellGridInfo nextPop)
             //Cell *cell = ((Cell *)((char *)currPop.data + tIdY * currPop.pitch) + tIdX);
             Cell *cell = &currPop.data[(tIdY * currPop.width) + tIdX];
 
-            // Initial fitness value is set in initialization code.
-            //cell->fitness = (float)tex2D<byte>(fitnessTexRef, cell->x, cell->y);
-
             // We can't find partner in cell code, becuse we don't know the fitness value.
             // We would have to do 2 iteratios of this loops. One beforehand to just setup fitness value,
             // then synchronize all threads and find the mating partner.
 
             Cell *partner = nullptr;
+            Cell *neighArr;
+            int neighSize;
+            switch (neigh)
+            {
+            case NeighborhoodType_L5:
+            {
+                neighSize = 4;
+                Cell neighborhood[4];
+                cell->get_neighborhood<neigh>(tIdX, tIdY, currPop, neighborhood);
+                neighArr = neighborhood;
+            }
+            break;
+            case NeighborhoodType_L9:
+            case NeighborhoodType_C9:
+            {
+                neighSize = 8;
+                Cell neighborhood[8];
+                cell->get_neighborhood<neigh>(tIdX, tIdY, currPop, neighborhood);
+                neighArr = neighborhood;
+            }
+            break;
+            case NeighborhoodType_C13:
+            {
+                neighSize = 12;
+                Cell neighborhood[12];
+                cell->get_neighborhood<neigh>(tIdX, tIdY, currPop, neighborhood);
+                neighArr = neighborhood;
+            }
+            break;
+            }
+
             float bestFitness = -1;
             {
-                // L5 cross
-                // Cell *topCell = ((Cell *)((char *)currPop.data + mod(tIdY - 1, currPop.height) * currPop.pitch) + tIdX);
-                // Cell *bottomCell = ((Cell *)((char *)currPop.data + mod(tIdY + 1, currPop.height) * currPop.pitch) + tIdX);
-                // Cell *leftCell = ((Cell *)((char *)currPop.data + tIdY * currPop.pitch) + mod(tIdX - 1, currPop.width));
-                // Cell *rightCell = ((Cell *)((char *)currPop.data + tIdY * currPop.pitch) + mod(tIdX + 1, currPop.width));
-
-                Cell *topCell = &currPop.data[(mod(tIdY - 1, currPop.height) * currPop.width) + tIdX];
-                Cell *bottomCell = &currPop.data[(mod(tIdY + 1, currPop.height) * currPop.width) + tIdX];
-                Cell *leftCell = &currPop.data[(tIdY * currPop.width) + mod(tIdX - 1, currPop.width)];
-                Cell *rightCell = &currPop.data[(tIdY * currPop.width) + mod(tIdX + 1, currPop.width)];
-
-                float topCellFitness = (float)tex2D<byte>(fitnessTexRef, topCell->x, topCell->y);
-                float bottomCellFitness = (float)tex2D<byte>(fitnessTexRef, bottomCell->x, bottomCell->y);
-                float leftCellFitness = (float)tex2D<byte>(fitnessTexRef, leftCell->x, leftCell->y);
-                float rightCellFitness = (float)tex2D<byte>(fitnessTexRef, rightCell->x, rightCell->y);
-
-                partner = topCell;
-                bestFitness = topCellFitness;
-
-                if (bottomCellFitness > bestFitness)
+                for (size_t i = 0; i < neighSize; i++)
                 {
-                    bestFitness = bottomCellFitness;
-                    partner = bottomCell;
-                }
-                if (leftCellFitness > bestFitness)
-                {
-                    bestFitness = leftCellFitness;
-                    partner = leftCell;
-                }
-                if (rightCellFitness > bestFitness)
-                {
-                    bestFitness = rightCellFitness;
-                    partner = rightCell;
+                    neighArr[i].fitness = (float)tex2D<byte>(fitnessTexRef, neighArr[i].x, neighArr[i].y);
+                    if (neighArr[i].fitness > bestFitness)
+                    {
+                        bestFitness = neighArr[i].fitness;
+                        partner = &neighArr[i];
+                    }
                 }
             }
 
             Cell offspring = Cell(cell, partner);
             // offspring.random_mutation();
             offspring.fitness = (float)tex2D<byte>(fitnessTexRef, offspring.x, offspring.y);
+
             //offspring.fitness = 1.0f;
             //*((Cell *)((char *)nextPop.data + tIdY * nextPop.pitch) + tIdX) = offspring;
             nextPop.data[(tIdY * nextPop.width) + tIdX] = offspring;
 
             tIdY += strideY;
         }
-        tIdX += strideX;
-    }
-}
-
-__global__ void stupid_reduce(CellGridInfo grid, float *colSum)
-{
-    uint tIdX = (blockIdx.x * blockDim.x) + threadIdx.x;
-    uint strideX = blockDim.x * gridDim.x;
-
-    while (tIdX < grid.width)
-    {
-        //Calculate the sum of the column;
-        //colSum[tIdX] = 1.0f;
-
-        for (uint row = 0; row < grid.height; row++)
-        {
-            //Cell *cell = ((Cell *)((char *)grid.data + row * grid.pitch) + tIdX);
-            Cell *cell = &grid.data[(row * grid.width) + tIdX];
-            colSum[tIdX] += cell->fitness;
-        }
-
         tIdX += strideX;
     }
 }
@@ -300,7 +284,6 @@ void CellGrid::initialize_grid(const Image &fitnessImage)
     CUDA_CALL(cudaMalloc((void **)&device_kernelParams, sizeof(mtgp32_kernel_params)));
 
     CURAND_CALL(curandMakeMTGP32Constants(mtgp32dc_params_fast_11213, device_kernelParams));
-
     CURAND_CALL(curandMakeMTGP32KernelState(device_randomStates, mtgp32dc_params_fast_11213, device_kernelParams, stateCount, time(NULL)));
 
     CellGridInfo currPop = {};
@@ -373,7 +356,7 @@ void CellGrid::evolve(float &evolutionTime)
     //CUDA_CALL(cudaMemcpy2D(device_nextPopMemory, nextPopPitch, device_currPopMemory, currPopPitch, width * sizeof(Cell), height, cudaMemcpyDeviceToDevice));
 
     CUDA_TIMED_BLOCK_START("Evolve");
-    evolve_kernel<<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, nextPop);
+    evolve_kernel<NeighborhoodType_L5><<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, nextPop);
     CUDA_TIMED_BLOCK_END(false);
     evolutionTime = elapsedTime;
 
@@ -394,7 +377,7 @@ float CellGrid::get_average_fitness(float &reduceTime) const
     unsigned int n = width * height;
     constexpr unsigned int ReduceTPB = 512;
     unsigned int numberOfBlocks = get_number_of_parts(n, ReduceTPB);
-    printf("number of blocks %u\n", numberOfBlocks);
+    //printf("number of blocks %u\n", numberOfBlocks);
 
     dim3 dimGrid = dim3(numberOfBlocks, 1, 1);
     dim3 dimBlock = dim3(ReduceTPB, 1, 1);

@@ -83,5 +83,17 @@ __host__ void print_device_memory(const T *device_memory, size_t pitch, size_t w
 
     CUDA_CALL(cudaFreeHost(tmpMemory));
 }
-
+// 5 mod 2 = 5 - (5 / 2)
 __forceinline__ __device__ __host__ int mod(const int x, const int m) { return (x % m + m) % m; }
+// __forceinline__ __device__ __host__ int mod(const int x, const int m)
+// {
+//     if (x >= 0 && x < m)
+//         return x;
+//     else
+//         return (x % m + m) % m;
+//     // if (x >= m)
+//     //     return x - m;
+//     // if (x < 0)
+//     //     return m + x;
+//     // return x;
+// }
