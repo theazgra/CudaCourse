@@ -36,19 +36,12 @@ cuda_add_executable ( ${PROJECT_NAME} main.cu
 
 target_link_libraries (${PROJECT_NAME} 
     ${CMAKE_THREAD_LIBS_INIT}
-    /usr/local/lib/libSOIL.a
     ${OPENGL_gl_LIBRARY} )
 
 # Specify include directories
 include_directories(
-    # common/CUDA_10-0_SDK/inc
-    # common/FreeImage/inc
-    # common/Utils
-    # common/Glew/inc
     include
     src
     ${CUDA_INCLUDE_DIRS}
 )
-
-# add_library(free_image STATIC common/FreeImage)
-# target_link_libraries (${PROJECT_NAME} "/usr/lib/x86_64-linux-gnu/libfreeimage-3.17.0.so")
+target_link_libraries (${PROJECT_NAME} "/usr/lib/x86_64-linux-gnu/libfreeimage-3.17.0.so")

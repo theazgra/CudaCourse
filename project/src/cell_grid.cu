@@ -9,7 +9,8 @@ struct TextureInfo
     size_t pitch;
     cudaChannelFormatDesc textureCFD;
 };
-texture<unsigned char, 2, cudaReadModeElementType> fitnessTexRef;
+// texture<unsigned char, 2, cudaReadModeElementType> fitnessTexRef;
+texture<uint16_t, 2, cudaReadModeElementType> fitnessTexRef;
 TextureInfo fitnessTex = {};
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -49,10 +50,7 @@ __global__ void generate_random_population(CellGridInfo gridInfo, RandomGenerato
             int y = rng.yMin + ((int)(f2 * (rng.yMax - rng.yMin) + 0.999999));
 
             Cell rnd(x, y);
-            rnd.fitness = tex2D<byte>(fitnessTexRef, x, y);
-            //rnd.fitness = 1.0f;
-            // *((Cell *)((char *)gridInfo.data + tIdY * gridInfo.pitch) + tIdX) = rnd; // Cell(x, y);
-            // T* pElement = (T*)((char*)BaseAddress + Row * pitch) + Column;
+            rnd.fitness = tex2D<uint16_t>(fitnessTexRef, x, y);
 
             gridInfo.data[(tIdY * gridInfo.width) + tIdX] = rnd;
 
@@ -120,7 +118,7 @@ __global__ void evolve_kernel(const CellGridInfo currPop, CellGridInfo nextPop)
             {
                 for (size_t i = 0; i < neighSize; i++)
                 {
-                    neighArr[i].fitness = (float)tex2D<byte>(fitnessTexRef, neighArr[i].x, neighArr[i].y);
+                    neighArr[i].fitness = (float)tex2D<uint16_t>(fitnessTexRef, neighArr[i].x, neighArr[i].y);
                     if (neighArr[i].fitness > bestFitness)
                     {
                         bestFitness = neighArr[i].fitness;
@@ -131,7 +129,7 @@ __global__ void evolve_kernel(const CellGridInfo currPop, CellGridInfo nextPop)
 
             Cell offspring = Cell(cell, partner);
             // offspring.random_mutation();
-            offspring.fitness = (float)tex2D<byte>(fitnessTexRef, offspring.x, offspring.y);
+            offspring.fitness = (float)tex2D<uint16_t>(fitnessTexRef, offspring.x, offspring.y);
 
             //offspring.fitness = 1.0f;
             //*((Cell *)((char *)nextPop.data + tIdY * nextPop.pitch) + tIdX) = offspring;
@@ -239,18 +237,23 @@ CellGrid::~CellGrid()
 
 void CellGrid::create_fitness_texture(const Image &fitnessImage)
 {
-    assert(fitnessImage.image_type() == ImageType_GrayScale_8bpp && "Cuda texture only support 1,2 or 4 sized vectors.");
+
+    uint channelCount = fitnessImage.channel_count();
+    assert((channelCount == 1) ||
+           (channelCount == 2) ||
+           (channelCount == 4) &&
+               "Cuda texture only support 1,2 or 4 sized vectors.");
 
     textureWidth = fitnessImage.width();
     textureHeight = fitnessImage.height();
 
-    size_t memoryWidth = textureWidth * fitnessImage.channel_count() * sizeof(byte);
+    size_t memoryWidth = textureWidth * pixel_byte_size(fitnessImage.image_type());
     size_t memoryRowCount = textureHeight;
 
     CUDA_CALL(cudaMallocPitch((void **)&fitnessTex.device_data, &fitnessTex.pitch, memoryWidth, memoryRowCount));
-    CUDA_CALL(cudaMemcpy2D(fitnessTex.device_data, fitnessTex.pitch, fitnessImage.data(), memoryWidth, memoryWidth, memoryRowCount, cudaMemcpyHostToDevice));
+    CUDA_CALL(cudaMemcpy2D(fitnessTex.device_data, fitnessTex.pitch, fitnessImage.data(), fitnessImage.pitch(), memoryWidth, memoryRowCount, cudaMemcpyHostToDevice));
 
-    fitnessTex.textureCFD = cudaCreateChannelDesc(8, 0, 0, 0, cudaChannelFormatKindUnsigned);
+    fitnessTex.textureCFD = cudaCreateChannelDesc(16, 0, 0, 0, cudaChannelFormatKindUnsigned);
 
     fitnessTexRef.normalized = false;
     fitnessTexRef.filterMode = cudaFilterModePoint;

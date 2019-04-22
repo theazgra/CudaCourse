@@ -15,7 +15,7 @@ int main(int argc, char const *argv[])
     ks.gridDimension = dim3(get_number_of_parts(CellGridDimension, ThreadsPerBlock), get_number_of_parts(CellGridDimension, ThreadsPerBlock), 1);
 
     CellGrid grid(CellGridDimension, CellGridDimension, ks);
-    Image fitnessImage = Image("../images/radial.png", ImageType_GrayScale_8bpp);
+    Image fitnessImage = Image("/home/mor0146/github/CudaCourse/project/images/radial16bit_2.png", ImageType_GrayScale_16bpp);
     grid.initialize_grid(fitnessImage);
 
     float fitness = 0.0;
