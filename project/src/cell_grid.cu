@@ -27,7 +27,7 @@ struct RandomGeneratorInfo
 
 __global__ void generate_random_population(CellGridInfo gridInfo, RandomGeneratorInfo rng)
 {
-    //NOTE: This version, with 200 threads in 1D block inside 1D grid is about 9x faster than 
+    //NOTE: This version, with 200 threads in 1D block inside 1D grid is about 9x faster than
     //      version with 2D blocks.
     size_t n = gridInfo.width * gridInfo.height;
     uint rngStateOffset = threadIdx.x;
@@ -325,12 +325,11 @@ void CellGrid::initialize_grid(const Image &fitnessImage)
     printf("RNG interval xMax: %u yMax: %u\n", rng.xMax, rng.yMax);
     rng.state = device_randomStates;
 
-    uint blockCount = get_number_of_parts( width * height  ,200);
+    uint blockCount = get_number_of_parts(width * height, 200);
     CUDA_TIMED_BLOCK_START("InitialPopulationGeneration");
     //generate_random_population<<<dim3(rngGridDim, rngGridDim, 1), dim3(rngBlockDim, rngBlockDim, 1)>>>(currPop, rng);
     generate_random_population<<<dim3(blockCount, 1, 1), dim3(200, 1, 1)>>>(currPop, rng);
     CUDA_TIMED_BLOCK_END(true);
-    
 
     CUDA_CALL(cudaFree(device_randomStates));
     // CUDA_CALL(cudaPeekAtLastError());
@@ -379,21 +378,14 @@ void CellGrid::evolve(float &evolutionTime)
     nextPop.width = width;
     nextPop.height = height;
 
-    CUDA_CALL(cudaMemset2D(device_nextPopMemory, nextPopPitch, 5, width * sizeof(Cell), height));
+    // CUDA_CALL(cudaMemset2D(device_nextPopMemory, nextPopPitch, 5, width * sizeof(Cell), height));
     // Memory needs to be copied only if we decide to take some cells from old population.
-    //CUDA_CALL(cudaMemcpy2D(device_nextPopMemory, nextPopPitch, device_currPopMemory, currPopPitch, width * sizeof(Cell), height, cudaMemcpyDeviceToDevice));
+    // CUDA_CALL(cudaMemcpy2D(device_nextPopMemory, nextPopPitch, device_currPopMemory, currPopPitch, width * sizeof(Cell), height, cudaMemcpyDeviceToDevice));
 
     CUDA_TIMED_BLOCK_START("Evolve");
-    evolve_kernel<NeighborhoodType_L5><<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, nextPop);
+    evolve_kernel<NeighborhoodType_L9><<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, nextPop);
     CUDA_TIMED_BLOCK_END(false);
     evolutionTime = elapsedTime;
-
-    //print_cell_grid(device_currPopMemory, currPopPitch, true);
-    //printf("--------------------------------------------------------------------------------\n");
-    //print_cell_grid(device_nextPopMemory, nextPopPitch, true);
-    //device_currPopMemory = device_nextPopMemory;
-
-    //CUDA_CALL(cudaMemcpy(device_currPopMemory, device_nextPopMemory, sizeof(Cell)*width*height, cudaMemcpyDeviceToDevice));
 
     Cell *tmp = device_currPopMemory;
     device_currPopMemory = device_nextPopMemory;

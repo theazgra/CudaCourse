@@ -3,8 +3,8 @@
 #include <assert.h>
 #include <cell_grid.cuh>
 
-constexpr int NumberOfEvolutions = 1000;
-constexpr int CellGridDimension = 5000; //10000
+constexpr int NumberOfEvolutions = 5000;
+constexpr int CellGridDimension = 1000; //10000
 constexpr size_t CellCount = CellGridDimension * CellGridDimension;
 
 int main(int argc, char const *argv[])
@@ -17,15 +17,15 @@ int main(int argc, char const *argv[])
     CellGrid grid(CellGridDimension, CellGridDimension, ks);
     Image fitnessImage = Image("/home/mor0146/github/CudaCourse/project/images/radial16bit_2.png", ImageType_GrayScale_16bpp);
     grid.initialize_grid(fitnessImage);
-    
+
     float fitness = 0.0;
     float lastFitness = -1.0f;
     uint iter = 0;
     double diff = 0;
     double averageEvolveTime = 0.0f;
     double averageFitnessTime = 0.0f;
-
-    while (iter < NumberOfEvolutions && fitness != lastFitness)
+    size_t sameFitnessValue = 0;
+    while (iter < NumberOfEvolutions && sameFitnessValue < 5)
     {
         float evolveTime, fitnessTime;
 
@@ -39,6 +39,12 @@ int main(int argc, char const *argv[])
         averageFitnessTime += fitnessTime;
 
         diff = fitness - lastFitness;
+
+        if (fitness == lastFitness)
+            sameFitnessValue++;
+        else
+            sameFitnessValue = 0;
+
         printf("Finished iteration %u, fitness: %.6f\t %.6f\n", iter + 1, fitness, diff); //diff >= 0 ? "+" : "-",
     }
 

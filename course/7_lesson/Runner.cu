@@ -3,18 +3,9 @@
 #include <string.h>
 #include <math.h>
 #include "../../my_cuda.cu"
-#ifdef _WIN32
-#define WINDOWS_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-#endif
 
 // OpenGL Graphics includes
-// #include <glew.h>
-//#include <GL/glew.h>
-// #include <GL/glew.h>
 #include <GL/glut.h>
-// #include <freeglut.h>
 #include <cudaDefs.h>
 #include <imageManager.h>
 
