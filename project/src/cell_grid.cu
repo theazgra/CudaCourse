@@ -14,11 +14,6 @@ texture<uint16_t, 2, cudaReadModeElementType> fitnessTexRef;
 TextureInfo fitnessTex = {};
 ///////////////////////////////////////////////////////////////////////////////
 
-// Number of random status must be <= 200, because only 200 state params are prepared by nvidia, more params are definitely possible
-// but the user must generate them. 14*14*1*1 kernel will use 196 states which is as much as possible.
-constexpr uint rngGridDim = 14;
-constexpr uint rngBlockDim = 1;
-
 struct RandomGeneratorInfo
 {
     curandStateMtgp32 *state;
@@ -30,6 +25,32 @@ struct RandomGeneratorInfo
 
 //////////////////////////////////////////////////////// KERNELS /////////////////////////////////////////////////////////////////////
 
+__global__ void generate_random_population(CellGridInfo gridInfo, RandomGeneratorInfo rng)
+{
+    //NOTE: This version, with 200 threads in 1D block inside 1D grid is about 9x faster than 
+    //      version with 2D blocks.
+    size_t n = gridInfo.width * gridInfo.height;
+    uint rngStateOffset = threadIdx.x;
+    uint tIdX = (blockIdx.x * blockDim.x) + threadIdx.x;
+    uint strideX = blockDim.x * gridDim.x;
+
+    while (tIdX < n)
+    {
+        float f1 = curand_uniform(&rng.state[rngStateOffset]);
+        float f2 = curand_uniform(&rng.state[rngStateOffset]);
+        int x = rng.xMin + ((int)(f1 * (rng.xMax - rng.xMin) + 0.999999));
+        int y = rng.yMin + ((int)(f2 * (rng.yMax - rng.yMin) + 0.999999));
+
+        Cell rnd(x, y);
+        rnd.fitness = tex2D<uint16_t>(fitnessTexRef, x, y);
+
+        gridInfo.data[tIdX] = rnd;
+
+        tIdX += strideX;
+    }
+}
+
+/*
 __global__ void generate_random_population(CellGridInfo gridInfo, RandomGeneratorInfo rng)
 {
     uint tIdX = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -59,6 +80,7 @@ __global__ void generate_random_population(CellGridInfo gridInfo, RandomGenerato
         tIdX += strideX;
     }
 }
+*/
 
 // This kernel will evole current population into new one.
 template <NeighborhoodType neigh>
@@ -280,7 +302,7 @@ void CellGrid::initialize_grid(const Image &fitnessImage)
 
     curandStateMtgp32 *device_randomStates;
     mtgp32_kernel_params *device_kernelParams;
-    size_t stateCount = rngGridDim * rngGridDim;
+    size_t stateCount = 200; // rngGridDim * rngGridDim;
     assert(stateCount <= 200 && "Only 200 state params are prepared by Nvidia.");
 
     CUDA_CALL(cudaMalloc((void **)&device_randomStates, stateCount * sizeof(curandStateMtgp32)));
@@ -303,9 +325,12 @@ void CellGrid::initialize_grid(const Image &fitnessImage)
     printf("RNG interval xMax: %u yMax: %u\n", rng.xMax, rng.yMax);
     rng.state = device_randomStates;
 
-    CUDA_TIMED_BLOCK_START("Initial population generation");
-    generate_random_population<<<dim3(rngGridDim, rngGridDim, 1), dim3(rngBlockDim, rngBlockDim, 1)>>>(currPop, rng);
+    uint blockCount = get_number_of_parts( width * height  ,200);
+    CUDA_TIMED_BLOCK_START("InitialPopulationGeneration");
+    //generate_random_population<<<dim3(rngGridDim, rngGridDim, 1), dim3(rngBlockDim, rngBlockDim, 1)>>>(currPop, rng);
+    generate_random_population<<<dim3(blockCount, 1, 1), dim3(200, 1, 1)>>>(currPop, rng);
     CUDA_TIMED_BLOCK_END(true);
+    
 
     CUDA_CALL(cudaFree(device_randomStates));
     // CUDA_CALL(cudaPeekAtLastError());

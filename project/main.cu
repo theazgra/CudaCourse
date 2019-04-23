@@ -17,7 +17,7 @@ int main(int argc, char const *argv[])
     CellGrid grid(CellGridDimension, CellGridDimension, ks);
     Image fitnessImage = Image("/home/mor0146/github/CudaCourse/project/images/radial16bit_2.png", ImageType_GrayScale_16bpp);
     grid.initialize_grid(fitnessImage);
-
+    
     float fitness = 0.0;
     float lastFitness = -1.0f;
     uint iter = 0;
