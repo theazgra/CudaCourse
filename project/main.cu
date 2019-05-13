@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <cell_grid.cuh>
 
-constexpr int NumberOfEvolutions = 5000;
+constexpr int NumberOfEvolutions = 100;
 constexpr int CellGridDimension = 1000; //10000
 constexpr size_t CellCount = CellGridDimension * CellGridDimension;
 

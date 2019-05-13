@@ -21,6 +21,7 @@ private:
   size_t nextPopPitch;
   Cell *device_currPopMemory = nullptr;
   Cell *device_nextPopMemory = nullptr;
+
   void print_cell_grid(const Cell *data, const size_t pitch, bool fitness = false) const;
 
   void create_fitness_texture(const Image &fitnessImage);
