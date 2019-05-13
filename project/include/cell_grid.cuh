@@ -27,9 +27,13 @@ private:
   void create_fitness_texture(const Image &fitnessImage);
 
 public:
+  CellGrid();
   CellGrid(const size_t width, const size_t height, KernelSettings kernelSettings);
   ~CellGrid();
   void initialize_grid(const Image &fitnessImage);
   void evolve(float &evolutionTime);
   float get_average_fitness(float &reduceTime) const;
+
+  Cell *get_device_population_memory() const;
+  KernelSettings get_kernel_settings() const;
 };

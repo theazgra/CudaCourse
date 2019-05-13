@@ -235,6 +235,7 @@ __global__ void smart_reduce(CellGridInfo grid, unsigned int n, float *finalSum)
 
 ////////////////////////////////////////////////// END OF KERNELS /////////////////////////////////////////////////////////////////////
 
+CellGrid::CellGrid() {}
 CellGrid::CellGrid(const size_t width, const size_t height, KernelSettings kernelSettings)
 {
     this->width = width;
@@ -425,4 +426,14 @@ float CellGrid::get_average_fitness(float &reduceTime) const
     reduceTime = elapsedTime;
 
     return sum / (float)n;
+}
+
+Cell *CellGrid::get_device_population_memory() const
+{
+    return this->device_currPopMemory;
+}
+
+KernelSettings CellGrid::get_kernel_settings() const
+{
+    return this->kernelSettings;
 }
