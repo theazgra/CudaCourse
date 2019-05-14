@@ -5,18 +5,23 @@
 #include <cstring>
 #include <string>
 #include <limits>
+
+constexpr int ThreadsPerBlock = 32;
+constexpr int NumberOfEvolutions = 5000;
+constexpr int CellGridDimension = 2048 * 4; //10000
+constexpr size_t CellCount = CellGridDimension * CellGridDimension;
+
+#define ENABLE_OGL 0
+
+#if ENABLE_OGL
+
 #include <GL/glew.h>
 #include <GL/glut.h>
 #include <cuda_gl_interop.h>
 
 typedef unsigned char uchar;
-
 constexpr int BlockDim = 32;
-constexpr int NumberOfEvolutions = 5000;
-constexpr int CellGridDimension = 1024; //10000
-constexpr size_t CellCount = CellGridDimension * CellGridDimension;
 constexpr ushort MaxFitness = std::numeric_limits<ushort>::max();
-
 int viewportWidth = CellGridDimension;
 int viewportHeight = CellGridDimension;
 
@@ -113,10 +118,10 @@ __global__ void draw(const unsigned int pboWidth, const unsigned int pboHeight, 
 
             float p = cell.fitness / static_cast<float>(MaxFitness);
 
-            pbo[(cell.y * CellGridDimension * 4) + cell.x] = 255;
-            pbo[(cell.y * CellGridDimension * 4) + cell.x + 1] = 255;
-            pbo[(cell.y * CellGridDimension * 4) + cell.x + 2] = 255;
-            pbo[(cell.y * CellGridDimension * 4) + cell.x + 3] = 0; //(uchar)(255 * p);
+            pbo[(cell.x * CellGridDimension * 4) + cell.y] = 255;
+            pbo[(cell.x * CellGridDimension * 4) + cell.y + 1] = 255;
+            pbo[(cell.x * CellGridDimension * 4) + cell.y + 2] = 255;
+            pbo[(cell.x * CellGridDimension * 4) + cell.y + 3] = 0; //(uchar)(255 * p);
 
             // pbo[(cell.y * CellGridDimension * 4) + cell.x] = static_cast<uchar>(255 * p);
             // pbo[(cell.y * CellGridDimension * 4) + cell.x + 1] = static_cast<uchar>(125 * p);
@@ -253,15 +258,15 @@ void releaseResources()
     printf("Average evolve time: %f ms\n", averageEvolveTime);
     printf("Average fitness time: %f ms\n", averageFitnessTime);
 }
-
+#endif
 int main(int argc, char **argv)
 {
-    std::string inputFile = "/home/mor0146/github/CudaCourse/project/images/radial1k.png";
+    std::string inputFile = "/home/mor0146/github/CudaCourse/project/images/radial16bit_2.png";
     if (argc > 1)
     {
         inputFile = argv[1];
     }
-#if 0
+#if ENABLE_OGL
     // Initialize CellGrid
     fprintf(stdout, "Cell count: %lu\n", CellCount);
     KernelSettings ks = {};
@@ -296,7 +301,7 @@ int main(int argc, char **argv)
     KernelSettings ks = {};
     ks.blockDimension = dim3(ThreadsPerBlock, ThreadsPerBlock, 1);
     ks.gridDimension = dim3(get_number_of_parts(CellGridDimension, ThreadsPerBlock), get_number_of_parts(CellGridDimension, ThreadsPerBlock), 1);
-    grid = CellGrid(CellGridDimension, CellGridDimension, ks);
+    CellGrid grid = CellGrid(CellGridDimension, CellGridDimension, ks);
 
     Image fitnessImage = Image("/home/mor0146/github/CudaCourse/project/images/radial16bit_2.png", ImageType_GrayScale_16bpp);
     grid.initialize_grid(fitnessImage);

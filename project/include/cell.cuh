@@ -12,7 +12,7 @@ struct CellGridInfo
     size_t height;
 };
 
-struct __align__(16) Cell
+struct Cell //__align__(16)
 {
     int x = -1;
     int y = -1;
@@ -102,36 +102,5 @@ struct __align__(16) Cell
         }
         break;
         }
-    }
-
-    /*
-    __device__ Cell *find_partner(const CellGridInfo *grid, const uint tIdX, const uint tIdY)
-    {
-        Cell *bestPartner = nullptr;
-
-        // L5 cross
-        Cell *topCell = ((Cell *)((char *)grid->data + mod(tIdY - 1, grid->height) * grid->pitch) + tIdX);
-        Cell *bottomCell = ((Cell *)((char *)grid->data + mod(tIdY + 1, grid->height) * grid->pitch) + tIdX);
-        Cell *leftCell = ((Cell *)((char *)grid->data + tIdY * grid->pitch) + mod(tIdX - 1, grid->width));
-        Cell *rightCell = ((Cell *)((char *)grid->data + tIdY * grid->pitch) + mod(tIdX + 1, grid->width));
-
-        bestPartner = topCell;
-        if (bottomCell->fitness > bestPartner->fitness)
-            bestPartner = bottomCell;
-        if (leftCell->fitness > bestPartner->fitness)
-            bestPartner = leftCell;
-        if (rightCell->fitness > bestPartner->fitness)
-            bestPartner = rightCell;
-
-        assert(bestPartner != nullptr);
-
-        return bestPartner;
-    }
-    */
-
-    __device__ void
-    random_mutation()
-    {
-        //TODO: Do we want to apply random mutation?
     }
 };

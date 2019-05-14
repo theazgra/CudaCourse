@@ -50,38 +50,6 @@ __global__ void generate_random_population(CellGridInfo gridInfo, RandomGenerato
     }
 }
 
-/*
-__global__ void generate_random_population(CellGridInfo gridInfo, RandomGeneratorInfo rng)
-{
-    uint tIdX = (blockIdx.x * blockDim.x) + threadIdx.x;
-    uint tIdY = (blockIdx.y * blockDim.y) + threadIdx.y;
-    uint strideX = blockDim.x * gridDim.x;
-    uint strideY = blockDim.y * gridDim.y;
-
-    uint rngStateOffset = (tIdX * rngGridDim) + tIdY;
-
-    while (tIdX < gridInfo.width)
-    {
-        tIdY = (blockIdx.y * blockDim.y) + threadIdx.y;
-        while (tIdY < gridInfo.height)
-        {
-            float f1 = curand_uniform(&rng.state[rngStateOffset]);
-            float f2 = curand_uniform(&rng.state[rngStateOffset]);
-            int x = rng.xMin + ((int)(f1 * (rng.xMax - rng.xMin) + 0.999999));
-            int y = rng.yMin + ((int)(f2 * (rng.yMax - rng.yMin) + 0.999999));
-
-            Cell rnd(x, y);
-            rnd.fitness = tex2D<uint16_t>(fitnessTexRef, x, y);
-
-            gridInfo.data[(tIdY * gridInfo.width) + tIdX] = rnd;
-
-            tIdY += strideY;
-        }
-        tIdX += strideX;
-    }
-}
-*/
-
 // This kernel will evole current population into new one.
 template <NeighborhoodType neigh>
 __global__ void evolve_kernel(const CellGridInfo currPop, CellGridInfo nextPop)
@@ -150,7 +118,6 @@ __global__ void evolve_kernel(const CellGridInfo currPop, CellGridInfo nextPop)
             }
 
             Cell offspring = Cell(cell, partner);
-            // offspring.random_mutation();
             offspring.fitness = (float)tex2D<uint16_t>(fitnessTexRef, offspring.x, offspring.y);
 
             //offspring.fitness = 1.0f;
@@ -328,14 +295,10 @@ void CellGrid::initialize_grid(const Image &fitnessImage)
 
     uint blockCount = get_number_of_parts(width * height, 200);
     CUDA_TIMED_BLOCK_START("InitialPopulationGeneration");
-    //generate_random_population<<<dim3(rngGridDim, rngGridDim, 1), dim3(rngBlockDim, rngBlockDim, 1)>>>(currPop, rng);
     generate_random_population<<<dim3(blockCount, 1, 1), dim3(200, 1, 1)>>>(currPop, rng);
     CUDA_TIMED_BLOCK_END(true);
 
     CUDA_CALL(cudaFree(device_randomStates));
-    // CUDA_CALL(cudaPeekAtLastError());
-    // CUDA_CALL(cudaDeviceSynchronize());
-    //print_cell_grid(device_currPopMemory, currPopPitch, true);
     printf("Grid initialized\n");
 }
 
@@ -385,7 +348,7 @@ void CellGrid::evolve(float &evolutionTime)
 
     CUDA_TIMED_BLOCK_START("Evolve");
     evolve_kernel<NeighborhoodType_L9><<<kernelSettings.gridDimension, kernelSettings.blockDimension>>>(currPop, nextPop);
-    CUDA_TIMED_BLOCK_END(false);
+    CUDA_TIMED_BLOCK_END(true);
     evolutionTime = elapsedTime;
 
     Cell *tmp = device_currPopMemory;

@@ -7,8 +7,6 @@
 typedef unsigned char byte;
 typedef unsigned int uint;
 
-constexpr int ThreadsPerBlock = 16;
-
 static void HandleError(cudaError_t err,
                         const char *file,
                         int line)

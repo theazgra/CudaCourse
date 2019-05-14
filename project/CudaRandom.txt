@@ -1,2 +1,0 @@
-CUDA examples
-    7_CudaLibraries/MersenneTwister/GP11213 - Generating set of random numbers on GPU
